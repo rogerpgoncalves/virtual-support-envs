@@ -1,0 +1,36 @@
+---
+- name: "Install HA packages"
+  yum:
+    name:
+      - pacemaker
+      - corosync
+      - pcs
+      - fence-agents*
+    state: present
+    update_cache: true
+  become: true
+
+- name: "Create HACLUSTER user"
+  shell: echo "hacluster" | passwd --stdin hacluster
+
+- name: "Start pcsd"
+  systemd:
+    name: pcsd
+    state: started
+    enabled: true
+
+- name: "Auth cluster"
+  shell: pcs cluster auth mngt0-1 mngt0-2 -u hacluster -p hacluster
+  delegate_to: mngt0-1
+
+- name: "Setup Cluster"
+  shell: pcs cluster setup --name ha-cluster mngt0-1 mngt0-2
+  delegate_to: mngt0-1
+
+- name: "Start Cluster"
+  shell: pcs cluster start --all
+  delegate_to: mngt0-1
+
+- name: "Disable STONITH"
+  shell: pcs property set stonith-enabled=false
+  delegate_to: mngt0-1
