@@ -1,1 +1,2 @@
 echo $(hostname)
+echo $(id)
