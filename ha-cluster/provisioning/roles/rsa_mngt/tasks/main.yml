@@ -1,0 +1,37 @@
+---
+- name: "create .ssh dir"
+  file:
+    path: "/home/vagrant/.ssh"
+    state: directory
+    owner: vagrant
+    group: vagrant
+
+- name: "copy .ssh files (RSA and config)"
+  copy: src={{ item.src }} dest={{ item.dest }}
+  with_items:
+    - { src: 'id_rsa', dest: '/home/vagrant/.ssh/id_rsa' }
+    - { src: 'id_rsa.pub', dest: '/home/vagrant/.ssh/id_rsa.pub' }
+    - { src: 'config', dest: '/home/vagrant/.ssh/config' }
+
+- name: "Add id_rsa.pub to authorized_keys"
+  authorized_key:
+    user: vagrant
+    state: present
+    key: "{{ lookup('file', item) }}"
+  with_fileglob:
+    - files/id_rsa.pub
+
+- name: "change file permissions"
+  file: path={{ item.path }} mode={{ item.mode }}
+  with_items:
+    - { path: '/home/vagrant/.ssh/id_rsa', mode: '600'}
+    - { path: '/home/vagrant/.ssh/id_rsa.pub', mode: '644'}
+    - { path: '/home/vagrant/.ssh/authorized_keys', mode: '600'}
+    - { path: '/home/vagrant/.ssh/config', mode: '644'}
+
+- name: "change owner directory"
+  file:
+    path: "/home/vagrant/.ssh"
+    owner: vagrant
+    group: vagrant
+    recurse: yes

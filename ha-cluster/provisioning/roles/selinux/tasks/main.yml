@@ -1,0 +1,11 @@
+---
+- name: "Disable SELinux"
+  lineinfile:
+    path: /etc/selinux/config
+    regexp: 'SELINUX=enforcing'
+    line: 'SELINUX=disabled'
+
+- name: "Remove firewalld"
+  yum:
+    name: firewalld
+    state: absent     

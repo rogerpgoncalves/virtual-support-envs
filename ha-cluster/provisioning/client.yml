@@ -1,0 +1,7 @@
+---
+- hosts: node
+  become: yes
+  roles:
+    - role: hosts
+    - role: rsa_client
+    - role: selinux
