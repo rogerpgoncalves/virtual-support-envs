@@ -1,2 +1,0 @@
-echo $(hostname)
-echo $(id)
