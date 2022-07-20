@@ -1,0 +1,38 @@
+cluster = {
+        "mngt0-1" => { :ip => "10.0.0.10", :bmc => "10.100.0.10", :cpus => 1, :mem => 2048 },
+        "mngt0-2" => { :ip => "10.0.0.20", :bmc => "10.100.0.20", :cpus => 1, :mem => 2048 }
+}
+
+client = {
+        "login" => { :ip => "10.0.0.110", :bmc => "10.100.0.110", :cpus => 1, :mem => 1024 },
+        "node" => { :ip => "10.0.0.100", :bmc => "10.100.0.100", :cpus => 1, :mem => 1024}
+}
+
+# Cluster Core Setup:
+Vagrant.configure("2") do |config|
+        cluster.each_with_index do |(hostname, info), index|
+                config.vm.define hostname do |mngt|
+                        mngt.vm.provider :virtualbox do |vb, override|
+                                config.vm.box = "jhcook/centos7"
+                                override.vm.network :private_network, ip: "#{info[:ip]}"
+                                override.vm.network :private_network, ip: "#{info[:bmc]}"
+                                override.vm.hostname = hostname
+                                vb.name = hostname
+                                vb.customize ["modifyvm", :id, "--memory", info[:mem], "--cpus", info[:cpus], "--hwvirtex", "on"]
+                        end
+                    end
+                end
+
+        client.each_with_index do |(hostname, info), index|
+                config.vm.define hostname do |node|
+                        node.vm.provider :virtualbox do |vb, override|
+                                config.vm.box = "jhcook/centos7"
+                                override.vm.network :private_network, ip: "#{info[:ip]}"
+                                override.vm.network :private_network, ip: "#{info[:bmc]}"
+                                override.vm.hostname = hostname
+                                vb.name = hostname
+                                vb.customize ["modifyvm", :id, "--memory", info[:mem], "--cpus", info[:cpus], "--hwvirtex", "on"]
+                        end
+                end
+        end
+end

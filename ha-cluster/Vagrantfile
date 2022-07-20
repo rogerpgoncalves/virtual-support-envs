@@ -1,0 +1,123 @@
+# **
+# author: leonardo.araujo@atos.net
+# simple-cluster:
+#	Arch:
+#		mngt0-1 - mngt0-2
+#			|
+#		     client
+#		  
+#	Resources:
+#	-> Pacemaker HA
+#	-> Slurm
+#	-> Clustershell
+#
+# **
+#
+
+cluster = {
+	"mngt0-1" => { :ip => "10.0.0.1", :bmc => "10.100.0.1", :cpus => 1, :mem => 2048, :hapass => "passCluster" },
+	"mngt0-2" => { :ip => "10.0.0.2", :bmc => "10.100.0.2", :cpus => 1, :mem => 2048, :hapass => "passCluster" }
+}
+
+client = {
+	"node" => { :ip => "10.0.0.10", :bmc => "10.100.0.10", :cpus => 1, :mem => 1024}
+}
+# Cluster Core Setup:
+Vagrant.configure("2") do |config|
+	cluster.each_with_index do |(hostname, info), index|
+		config.vm.define hostname do |mngt|
+			mngt.vm.provider :virtualbox do |vb, override|
+				config.vm.box = "jhcook/centos7"
+				override.vm.network :private_network, ip: "#{info[:ip]}"
+				override.vm.network :private_network, ip: "#{info[:bmc]}"
+				override.vm.hostname = hostname
+				vb.name = hostname
+				vb.customize ["modifyvm", :id, "--memory", info[:mem], "--cpus", info[:cpus], "--hwvirtex", "on"]
+			end
+
+			# Setup Public Keys between mngt's:
+			mngt.vm.provision "shell" do |s|
+				ssh_prv_key = File.read("id_rsa")
+				ssh_pub_key = File.readlines("id_rsa.pub").first.strip
+				s.inline = <<-SHELL
+				  echo "SSH key provisioning."
+				  mkdir -p /home/vagrant/.ssh/
+				  touch /home/vagrant/.ssh/authorized_keys
+				  echo #{ssh_pub_key} >> /home/vagrant/.ssh/authorized_keys
+				  echo #{ssh_pub_key} > /home/vagrant/.ssh/id_rsa.pub
+				  chmod 644 /home/vagrant/.ssh/id_rsa.pub
+				  echo "#{ssh_prv_key}" > /home/vagrant/.ssh/id_rsa
+				  chmod 600 /home/vagrant/.ssh/id_rsa
+				  touch /home/vagrant/.ssh/config
+				  echo 'StrictHostKeyChecking no' >> /home/vagrant/.ssh/config
+				  chmod 644 /home/vagrant/.ssh/config
+				  chown -R vagrant:vagrant /home/vagrant
+				  echo #{info[:ip]} #{hostname} >> /etc/hosts
+				  exit 0
+				SHELL
+			end
+
+			mngt.vm.provision :shell, :inline => "
+			yum -y install pacemaker pcs corosync -y
+			echo #{info[:hapass]} | passwd --stdin hacluster
+			", privileged: true
+
+			mngt.trigger.after :provisioner_run, type: :hook do |trigger|
+				trigger.only_on = "mngt0-1"
+				trigger.info = "Running only on mngt0-1 *******************"
+			end
+		end
+	end
+
+	client.each_with_index do |(hostname, info), index|
+		config.vm.define hostname do |node|
+			node.vm.provider :virtualbox do |vb, override|
+				config.vm.box = "jhcook/centos7"
+				override.vm.network :private_network, ip: "#{info[:ip]}"
+				override.vm.network :private_network, ip: "#{info[:bmc]}"
+				override.vm.hostname = hostname
+				vb.name = hostname
+				vb.customize ["modifyvm", :id, "--memory", info[:mem], "--cpus", info[:cpus], "--hwvirtex", "on"]
+			end
+			node.vm.provision "shell" do |s|
+				ssh_pub_key = File.readlines("id_rsa.pub").first.strip
+				s.inline = <<-SHELL
+				  echo "SSH key provisioning."
+				  mkdir -p /home/vagrant/.ssh/
+				  touch /home/vagrant/.ssh/authorized_keys
+				  echo #{ssh_pub_key} >> /home/vagrant/.ssh/authorized_keys
+				  chown -R vagrant:vagrant /home/vagrant
+				  exit 0
+				SHELL
+			  end
+		end
+	end
+end
+
+# 			# Setup Public Keys mngt -> client:
+# 			config.vm.provision "shell" do |s|
+# 				ssh_pub_key = File.readlines("id_rsa.pub").first.strip
+# 				s.inline = <<-SHELL
+# 				  echo "SSH key provisioning."
+# 				  mkdir -p /home/vagrant/.ssh/
+# 				  touch /home/vagrant/.ssh/authorized_keys
+# 				  echo #{ssh_pub_key} >> /home/vagrant/.ssh/authorized_keys
+# 				  chown -R vagrant:vagrant /home/vagrant
+# 				  exit 0
+# 				SHELL
+# 			  end
+# 			end
+# 		end
+# 	end
+# end
+
+# Vagrant.configure("2") do |config|
+# 	cluster.each_with_index do |(hostname, info), index|
+# 		config.vm.define hostname do |mngt|
+# 			if hostname == "mngt0-1"
+# 				mngt.vm.provision :shell, :inline =>"
+# 				echo ************FUNCIONOU DPS DE TUDO********"
+# 			end
+# 		end
+# 	end
+# end
