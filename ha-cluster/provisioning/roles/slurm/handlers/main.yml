@@ -1,0 +1,23 @@
+---
+- name: Create VIP Slurm
+  shell: pcs resource create vip-slurm ocf:heartbeat:IPaddr2 cidr_netmask=16 ip=10.0.0.100 nic=lo
+
+- name: Create Slurm resources
+  shell: "{{ item }}"
+  with_items:
+    - 'pcs resource create service-munge systemd:munge'
+    - 'pcs resource create service-mariadb systemd:mariadb'
+    - 'pcs resource create service-slurmdbd systemd:slurmdbd'
+    - 'pcs resource create service-slurmctld systemd:slurmctld'
+
+- name: Create Slurm group
+  shell: pcs resource group add slurm vip-slurm service-munge service-mariadb service-slurmdbd service-slurmctld
+
+- name: Create Slurm constraints
+  shell: "{{ item }}"
+  with_items:
+    - 'pcs constraint location slurm prefers mngt0-1=100'
+    - 'pcs constraint location slurm prefers mngt0-2=50'
+
+
+

@@ -41,7 +41,7 @@ Vagrant.configure("2") do |config|
 
 			if hostname == 'mngt0-2'
 				mngt.vm.provision :ansible do |ansible|
-					ansible.limit = "all"
+					ansible.limit = 'all'
 					ansible.playbook = 'provisioning/ha.yml'
 				end
 			end
@@ -61,6 +61,14 @@ Vagrant.configure("2") do |config|
 
 			node.vm.provision :ansible do |ansible|
 				ansible.playbook = 'provisioning/client.yml'
+			end
+
+			# Slurm Setup after every VMs is UP
+			if hostname == 'node'
+				node.vm.provision :ansible do |ansible|
+					ansible.limit = 'all'
+					ansible.playbook = 'provisioning/slurm.yml'
+				end
 			end
 		end
 	end

@@ -1,5 +1,5 @@
 ---
-- hosts: all
+- hosts: mngt0-1:mngt0-2
   become: yes
   roles:
     - role: ha_setup
