@@ -1,0 +1,182 @@
+---
+- name: "Enable epel"
+  yum:
+    name:
+      - epel-release
+    state: present
+    update_cache: true
+  become: true
+
+- name: "Install common packages (server and client)"
+  yum:
+    name:
+      - munge
+      - munge-libs
+      - slurm
+      - slurm-pam_slurm
+      - slurm-devel
+
+- name: "Install Slurm server packages"
+  yum: 
+    name:
+      - slurm-slurmctld
+      - slurm-slurmdbd
+      - mariadb
+      - mariadb-server
+  run_once: true
+  delegate_to: "{{ item }}"
+  with_items:
+    - mngt0-1
+    - mngt0-2
+  notify:
+    - Create VIP Slurm
+
+- name: "Install Slurm client packages"
+  yum:
+    name:
+      - slurm-slurmd
+  delegate_to: node
+  run_once: true
+
+- name: "Munge configuration [1/2]"
+  copy:
+    src: munge.key
+    dest: '/etc/munge/munge.key'
+    owner: munge
+    group: munge
+    mode: 0400
+
+- name: "Munge configuration [2/2]"
+  file:
+    path: /var/run/munge
+    state: directory
+    owner: munge
+    group: munge
+    mode: 0755
+
+- name: Start and enable munge
+  service:
+    name: munge
+    state: started
+    enabled: yes
+
+- name: Copy Slurm config
+  copy:
+    src: slurm.conf
+    dest: '/etc/slurm/slurm.conf'
+
+- name: Add slurm group
+  group:
+    name: slurm
+    gid: 567
+    state: present
+
+- name: Create slurm user
+  user:
+    name: slurm
+    shell: /bin/false
+    uid: 567
+    group: slurm
+    home: /etc/slurm
+
+- name: Create /var/spool/slurmd directory
+  file:
+    path: /var/spool/slurmd
+    state: directory
+    owner: slurm
+    group: slurm
+    mode: 0755
+
+- name: Create /var/spool/slurmd/StateSave directory
+  file:
+    path: /var/spool/slurmd/StateSave
+    state: directory
+    owner: slurm
+    group: slurm
+    mode: 0755
+
+- name: Create /var/log/slurm directory
+  file:
+    path: /var/log/slurm
+    state: directory
+    owner: slurm
+    group: slurm
+
+- name: Tuning mariadb for slurmdbd
+  copy:
+    src: 'slurm.cnf-mariadb'
+    dest: /etc/my.cnf.d/slurm.cnf
+    owner: root
+    group: root
+    mode: 0644
+  run_once: true
+  delegate_to: "{{ item }}"
+  with_items:
+    - mngt0-1
+    - mngt0-2
+
+- name: Start and enable mariadb
+  service:
+    name: mariadb
+    state: started
+    enabled: yes
+  delegate_to: mngt0-1
+  run_once: true
+
+- name: Create Slurm user for MariaDB and Database [1/2]
+  shell: mysql -e "create user 'slurm'@'localhost' identified by 'slurm'; create database slurm_acct_db;"
+  delegate_to: mngt0-1
+  run_once: true
+
+- name: Grant ALL for Slurm User on slurm_acct_db [2/2]
+  shell: mysql -e "grant all on slurm_acct_db.* TO 'slurm'@'localhost'; grant all on slurm_acct_db.* TO 'slurm'@'10.0.0.100' identified by 'slurm'"
+  delegate_to: mngt0-1
+  run_once: true
+
+- name: Copy slurmdb configuration
+  copy:
+    src: 'slurmdbd.conf'
+    dest: '/etc/slurm/slurmdbd.conf'
+    owner: slurm
+    group: slurm
+    mode: 0600
+  run_once: true
+  delegate_to: "{{ item }}"
+  with_items:
+    - mngt0-1
+    - mngt0-2
+
+- name: Copy slurmtunning configuration
+  copy:
+    src: 'slurmtuning.conf'
+    dest: '/etc/sysctl.d/slurmtuning.conf'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Start slurmdbd
+  service:
+    name: slurmdbd
+    state: started
+  delegate_to: mngt0-1
+  run_once: true
+
+- name: Start slurm
+  service:
+    name: slurmd
+    state: started
+    enabled: yes
+  delegate_to: node
+  run_once: true
+
+- name: Start slurmctld
+  service:
+    name: slurmctld
+    state: started
+    enabled: no
+  run_once: true
+  delegate_to: mngt0-1
+  notify:
+    - Create Slurm resources
+    - Create Slurm group
+    - Create Slurm constraints
