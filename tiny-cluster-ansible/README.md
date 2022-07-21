@@ -10,3 +10,8 @@ Ansible
 - Remove FIREWALLD
 - Disabilita SELINUX
 - Efetua update das VMs
+
+Tempo de provisionamento da máquinas
+real	12m45.765s
+user	1m49.824s
+sys	1m37.120s
